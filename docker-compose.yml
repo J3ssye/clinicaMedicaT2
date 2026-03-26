@@ -72,6 +72,7 @@ services:
       WHATSAPP_HOOK_URL: http://api:8000/api/webhooks/waha
       WHATSAPP_DEFAULT_ENGINE: NOWEB
       WEBHOOK_HMAC_SECRET: ${WEBHOOK_HMAC_SECRET}
+      WAHA_API_KEY: ${WAHA_API_KEY}
       WAHA_API_KEY_PLAIN: ${WAHA_API_KEY}
 
 volumes:
