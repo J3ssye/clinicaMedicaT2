@@ -68,6 +68,9 @@ services:
     image: devlikeapro/waha:latest
     ports:
       - "3001:3000"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       WHATSAPP_HOOK_URL: http://api:8000/api/webhooks/waha
       WHATSAPP_DEFAULT_ENGINE: NOWEB
