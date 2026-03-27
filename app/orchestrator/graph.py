@@ -65,7 +65,11 @@ class ChatOrchestrator:
         )
 
     async def _classify(self, state: ChatState) -> ChatState:
-        return {"intent": self.llm.classify_intent(state["message"])}
+        intent = self.llm.classify_intent(state["message"])
+        # Mensagens muito curtas e ambíguas funcionam melhor como FAQ guiada do que como fallback seco.
+        if intent == "fallback":
+            intent = "faq"
+        return {"intent": intent}
 
     def _route(self, state: ChatState) -> str:
         return state["intent"]
@@ -90,12 +94,19 @@ class ChatOrchestrator:
         response = await self.feedback_agent.handle(self._context_from_config(state, config))
         return response.model_dump()
 
-    async def _fallback(self, _: ChatState) -> ChatState:
+    async def _fallback(self, state: ChatState) -> ChatState:
+        reply = self.llm.draft_fallback_reply(state["message"])
+        if reply:
+            return {
+                "intent": "fallback",
+                "reply_text": reply,
+                "escalate_to_human": False,
+            }
         return {
             "intent": "fallback",
             "reply_text": (
-                "Entendi sua mensagem, mas preciso de um pouco mais de contexto para ajudar. "
-                "Voce quer agendar consulta, tirar uma duvida, falar de sintomas, documentos ou feedback?"
+                "Posso te ajudar com agendamento, horarios, convenios, sintomas, documentos e retorno da equipe. "
+                "Se quiser, me diga em uma frase o que voce precisa e eu sigo com o atendimento."
             ),
             "escalate_to_human": False,
         }
