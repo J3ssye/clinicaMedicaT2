@@ -73,7 +73,8 @@ services:
       - 1.1.1.1
     environment:
       WHATSAPP_HOOK_URL: http://api:8000/api/webhooks/waha
-      WHATSAPP_DEFAULT_ENGINE: NOWEB
+      WHATSAPP_DEFAULT_ENGINE: CHROME
+      WHATSAPP_HOOK_EVENTS: message,message.ack,presence.update,session.status
       WEBHOOK_HMAC_SECRET: ${WEBHOOK_HMAC_SECRET}
       WAHA_API_KEY: ${WAHA_API_KEY}
       WAHA_API_KEY_PLAIN: ${WAHA_API_KEY}

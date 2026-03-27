@@ -30,9 +30,17 @@ async def receive_waha_webhook(
     if message is None:
         return {"status": "ignored"}
 
+    # idempotência: se já processamos esse id, devolve 200 para evitar retry
+    if await MessageService.inbound_exists(session, message.message_id):
+        return {"status": "duplicate"}
+
     patient = await PatientService.get_or_create_by_phone(
         session, phone=message.sender_phone, name=message.sender_name
     )
+    if await MessageService.inbound_recent_duplicate(
+        session, patient_id=patient.id, content=message.text
+    ):
+        return {"status": "duplicate"}
     await MessageService.log_message(
         session,
         patient_id=patient.id,
@@ -41,22 +49,35 @@ async def receive_waha_webhook(
         external_id=message.message_id,
     )
 
-    result = await orchestrator.run(session=session, patient=patient, message=message.text)
+    try:
+        result = await orchestrator.run(session=session, patient=patient, message=message.text)
+        reply_text = result.reply_text
+        intent = result.intent
+    except Exception:  # noqa: BLE001
+        # não gerar 500 para não disparar retries; responde fallback simples
+        reply_text = (
+            "No momento estou com instabilidade. Pode mandar novamente em instantes, "
+            "ou deixe seu resumo que já te retorno."
+        )
+        intent = "fallback_error"
+
     await MessageService.log_message(
         session,
         patient_id=patient.id,
         direction="outbound",
-        content=result.reply_text,
-        intent=result.intent,
+        content=reply_text,
+        intent=intent,
     )
-    await waha_client.send_text(chat_id=message.sender_phone, text=result.reply_text)
-    return {"status": "processed", "intent": result.intent}
+    await waha_client.send_text(chat_id=message.sender_phone, text=reply_text)
+    return {"status": "processed", "intent": intent}
 
 
 def _extract_incoming_message(payload: WahaWebhookPayload) -> IncomingMessage | None:
     if payload.event not in {"message", "message.any"}:
         return None
     raw = payload.payload
+
+    # Texto
     text = (
         raw.get("body")
         or raw.get("text")
@@ -65,12 +86,35 @@ def _extract_incoming_message(payload: WahaWebhookPayload) -> IncomingMessage | 
     )
     if not text:
         return None
+
+    # Remetente
     sender = raw.get("from") or raw.get("sender", {}).get("id") or ""
+    if sender.endswith("@status"):
+        return None  # ignora status/stories
+    if raw.get("fromMe"):
+        return None  # ignora eco de mensagens próprias
+    if sender.endswith("@g.us") or "-" in sender:
+        return None  # ignora grupos
+
     sender_name = raw.get("sender", {}).get("pushName") or raw.get("notifyName")
-    timestamp = raw.get("timestamp")
+
+    # ID da mensagem (cobre diferentes formatos do webhook)
+    message_id = (
+        raw.get("id")
+        or raw.get("key", {}).get("id")
+        or raw.get("message", {}).get("key", {}).get("id")
+    )
+
+    timestamp = raw.get("timestamp") or raw.get("messageTimestamp")
     sent_at = datetime.fromtimestamp(int(timestamp)) if timestamp else None
+    if sent_at:
+        from datetime import datetime, timedelta
+        # Ignora histórico antigo (ex.: replay ao reconectar)
+        if sent_at < datetime.utcnow() - timedelta(minutes=3):
+            return None
+
     return IncomingMessage(
-        message_id=raw.get("id"),
+        message_id=message_id,
         sender_phone=sender,
         sender_name=sender_name,
         text=text,
