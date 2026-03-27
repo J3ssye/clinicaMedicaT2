@@ -4,6 +4,7 @@ import logging
 import re
 import time
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass
 from textwrap import dedent
 
@@ -11,6 +12,7 @@ import httpx
 from google import genai
 
 from app.core.config import get_settings
+from app.schemas.chat import ChatMessage
 
 
 settings = get_settings()
@@ -249,18 +251,19 @@ class GeminiService:
         return local_intent
 
     def draft_reply(self, system_prompt: str, message: str) -> str:
+        return self.chat(
+            [
+                ChatMessage(role="system", content=system_prompt),
+                ChatMessage(role="user", content=message),
+            ]
+        )
+
+    def chat(self, messages: Sequence[ChatMessage]) -> str:
         if not self.enabled:
             return ""
 
-        prompt = dedent(
-            f"""
-            {system_prompt}
-
-            Mensagem do paciente:
-            {message}
-            """
-        ).strip()
-        response = self._call_with_failover(kind="generation", prompt=prompt, config=self.generation_config)
+        prompt = self._serialize_messages(messages)
+        response = self._call_with_failover(kind="chat", prompt=prompt, config=self.generation_config)
         return response.text if response else ""
 
     def draft_fallback_reply(self, message: str) -> str:
@@ -363,6 +366,23 @@ class GeminiService:
         return providers
 
     @staticmethod
+    def _serialize_messages(messages: Sequence[ChatMessage]) -> str:
+        labels = {
+            "system": "Sistema",
+            "user": "Paciente",
+            "assistant": "Assistente",
+        }
+        parts: list[str] = []
+        for message in messages:
+            content = message.content.strip()
+            if not content:
+                continue
+            label = labels.get(message.role, message.role.title())
+            parts.append(f"{label}:\n{content}")
+        parts.append("Assistente:\n")
+        return "\n\n".join(parts).strip()
+
+    @staticmethod
     def _is_fast_fail_error(exc: Exception) -> bool:
         message = str(exc).upper()
         return any(token in message for token in ["RESOURCE_EXHAUSTED", "QUOTA", "429", "401", "403"])
@@ -397,6 +417,19 @@ class GeminiService:
                 "mal-estar",
                 "mal estar",
                 "atendimento medico",
+                "saude",
+                "problema de saude",
+                "ignoro",
+                "ignorar",
+                "devo me preocupar",
+                "preocupar",
+                "verruga",
+                "mancha",
+                "caroco",
+                "coceira",
+                "tosse",
+                "alergia",
+                "ferida",
             ]
         ):
             return "triage"

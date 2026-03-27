@@ -39,6 +39,16 @@ class Settings(BaseSettings):
         default="gemini,openai,anthropic",
         alias="LLM_PROVIDER_ORDER",
     )
+    clinic_assistant_system_prompt: str = Field(
+        default=(
+            "Voce e a assistente virtual de uma clinica medica. "
+            "Atenda pacientes em portugues do Brasil com linguagem clara, educada e objetiva. "
+            "Use o historico da conversa para manter contexto. "
+            "Quando faltar informacao, faca uma pergunta curta para continuar o atendimento. "
+            "Nao invente diagnosticos, resultados de exames, horarios ou promessas em nome da clinica."
+        ),
+        alias="CLINIC_ASSISTANT_SYSTEM_PROMPT",
+    )
 
     google_calendar_id: str = Field(default="primary", alias="GOOGLE_CALENDAR_ID")
     google_service_account_json: str | None = Field(

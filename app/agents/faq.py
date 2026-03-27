@@ -34,6 +34,11 @@ class FAQAgent:
                 "Ola! Posso te ajudar com agendamento, horarios, convenios, documentos e orientacoes iniciais. "
                 "Me diga o que voce precisa."
             )
+        if any(token in normalized for token in ["meu nome e", "tudo bem", "prazer", "sou a", "sou o"]):
+            return (
+                "Ola! Seja bem-vinda. Posso te ajudar com agendamento, horarios, convenios, documentos e orientacoes iniciais. "
+                "Me diga o que voce precisa."
+            )
         if any(token in normalized for token in ["horario", "horarios", "atendimento"]):
             return "A clinica atende de segunda a sexta, das 08:00 as 18:00."
         if any(token in normalized for token in ["endereco", "localizacao", "localizacao"]):
@@ -59,19 +64,17 @@ class FAQAgent:
             self._cache.pop(normalized, None)
 
         rule_based = self._reply_from_rules(context.incoming_text)
-        if rule_based:
-            self._cache[normalized] = (rule_based, now)
-            return OrchestratorResponse(intent="faq", reply_text=rule_based)
-
         kb = self._knowledge_base()
         prompt = (
-            "Voce e o agente de FAQ da clinica. Responda de forma objetiva, simpatica e segura. "
-            "Se a resposta nao estiver na base, diga que vai encaminhar para a equipe."
+            "Voce e o agente de FAQ da clinica. Responda de forma objetiva, simpatica e segura, em no maximo 2 frases. "
+            "Use primeiro o contexto estruturado abaixo e depois a base FAQ. "
+            "Se a resposta nao estiver na base nem no contexto, diga que vai encaminhar para a equipe."
+            f"\n\nContexto sugerido por regras locais:\n{rule_based or 'nenhum'}"
             f"\n\nBase FAQ:\n{kb}"
         )
         reply = self.llm.draft_reply(prompt, context.incoming_text)
         if not reply:
-            reply = (
+            reply = rule_based or (
                 "Posso ajudar com horario de atendimento, localizacao, convenio e preparo de exames. "
                 "Se sua duvida for especifica, encaminho para nossa equipe."
             )

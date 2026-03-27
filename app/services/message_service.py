@@ -2,6 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.message import Message
+from app.schemas.chat import ChatMessage
 
 
 class MessageService:
@@ -14,6 +15,7 @@ class MessageService:
         content: str,
         external_id: str | None = None,
         intent: str | None = None,
+        commit: bool = True,
     ) -> Message:
         message = Message(
             patient_id=patient_id,
@@ -23,8 +25,11 @@ class MessageService:
             intent=intent,
         )
         session.add(message)
-        await session.commit()
-        await session.refresh(message)
+        if commit:
+            await session.commit()
+            await session.refresh(message)
+        else:
+            await session.flush()
         return message
 
     @staticmethod
@@ -64,3 +69,46 @@ class MessageService:
         )
         result = await session.execute(stmt)
         return result.scalar_one_or_none() is not None
+
+    @staticmethod
+    async def get_conversation_history(
+        session: AsyncSession,
+        *,
+        patient_id: int | None,
+        limit: int = 20,
+    ) -> list[Message]:
+        if patient_id is None:
+            return []
+        stmt = (
+            select(Message)
+            .where(Message.patient_id == patient_id)
+            .order_by(Message.created_at.desc(), Message.id.desc())
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        history = list(result.scalars().all())
+        history.reverse()
+        return history
+
+    @staticmethod
+    def to_chat_messages(messages: list[Message]) -> list[ChatMessage]:
+        role_by_direction = {"inbound": "user", "outbound": "assistant"}
+        conversation: list[ChatMessage] = []
+        for message in messages:
+            role = role_by_direction.get(message.direction)
+            if role is None or not message.content:
+                continue
+            conversation.append(ChatMessage(role=role, content=message.content))
+        return conversation
+
+    @classmethod
+    async def build_llm_messages(
+        cls,
+        session: AsyncSession,
+        *,
+        patient_id: int | None,
+        system_prompt: str,
+        limit: int = 20,
+    ) -> list[ChatMessage]:
+        history = await cls.get_conversation_history(session, patient_id=patient_id, limit=limit)
+        return [ChatMessage(role="system", content=system_prompt), *cls.to_chat_messages(history)]
