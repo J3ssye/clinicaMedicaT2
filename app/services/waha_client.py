@@ -21,5 +21,9 @@ class WahaClient:
         payload = {"session": self.session, "chatId": chat_id, "text": text}
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(url, json=payload, headers=self.headers)
-            response.raise_for_status()
-            return response.json()
+            # Não deixar o webhook falhar por resposta não-JSON ou erro do WAHA
+            try:
+                response.raise_for_status()
+                return response.json()
+            except Exception:
+                return {"status_code": response.status_code, "text": response.text}
