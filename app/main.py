@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +9,12 @@ from app.db.session import init_db
 
 
 settings = get_settings()
+
+# logging básico para expor métricas do LLM em stdout
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s %(message)s",
+)
 
 
 @asynccontextmanager

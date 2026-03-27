@@ -1,5 +1,6 @@
 import json
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +18,7 @@ from app.services.waha_client import WahaClient
 router = APIRouter()
 orchestrator = ChatOrchestrator()
 waha_client = WahaClient()
+logger = logging.getLogger(__name__)
 
 
 @router.post("/webhooks/waha", dependencies=[Depends(enforce_rate_limit)])
@@ -53,8 +55,9 @@ async def receive_waha_webhook(
         result = await orchestrator.run(session=session, patient=patient, message=message.text)
         reply_text = result.reply_text
         intent = result.intent
-    except Exception:  # noqa: BLE001
-        # não gerar 500 para não disparar retries; responde fallback simples
+    except Exception as exc:  # noqa: BLE001
+        # registra o erro e não gera 500 para evitar retries
+        logger.exception("orchestrator_error", extra={"message_id": message.message_id, "patient": patient.id})
         reply_text = (
             "No momento estou com instabilidade. Pode mandar novamente em instantes, "
             "ou deixe seu resumo que já te retorno."
@@ -89,8 +92,8 @@ def _extract_incoming_message(payload: WahaWebhookPayload) -> IncomingMessage | 
 
     # Remetente
     sender = raw.get("from") or raw.get("sender", {}).get("id") or ""
-    if sender.endswith("@status"):
-        return None  # ignora status/stories
+    if sender.endswith("@status") or "status@broadcast" in sender or "broadcast" in sender:
+        return None  # ignora status/broadcast/stories
     if raw.get("fromMe"):
         return None  # ignora eco de mensagens próprias
     if sender.endswith("@g.us") or "-" in sender:
@@ -108,7 +111,6 @@ def _extract_incoming_message(payload: WahaWebhookPayload) -> IncomingMessage | 
     timestamp = raw.get("timestamp") or raw.get("messageTimestamp")
     sent_at = datetime.fromtimestamp(int(timestamp)) if timestamp else None
     if sent_at:
-        from datetime import datetime, timedelta
         # Ignora histórico antigo (ex.: replay ao reconectar)
         if sent_at < datetime.utcnow() - timedelta(minutes=3):
             return None
