@@ -31,6 +31,14 @@ class Settings(BaseSettings):
 
     gemini_api_key: str | None = Field(default=None, alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4.1-mini", alias="OPENAI_MODEL")
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    anthropic_model: str = Field(default="claude-3-5-sonnet-latest", alias="ANTHROPIC_MODEL")
+    llm_provider_order: str = Field(
+        default="gemini,openai,anthropic",
+        alias="LLM_PROVIDER_ORDER",
+    )
 
     google_calendar_id: str = Field(default="primary", alias="GOOGLE_CALENDAR_ID")
     google_service_account_json: str | None = Field(
