@@ -1,6 +1,8 @@
-from datetime import datetime
+from __future__ import annotations
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from datetime import date, datetime
+
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -8,7 +10,10 @@ from app.db.base import Base
 
 class ReminderLog(Base):
     __tablename__ = "lembretes_enviados"
-    __table_args__ = (UniqueConstraint("appointment_id", "kind", name="uq_reminder_kind"),)
+    __table_args__ = (
+        UniqueConstraint("appointment_id", "kind", name="uq_reminder_kind"),
+        Index("ix_lembretes_kind_sent_at", "kind", "sent_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     appointment_id: Mapped[int] = mapped_column(ForeignKey("consultas.id"), index=True)

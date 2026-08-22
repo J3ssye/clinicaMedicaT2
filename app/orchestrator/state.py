@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Literal, TypedDict
 
 
@@ -10,3 +12,4 @@ class ChatState(TypedDict, total=False):
     intent: Intent
     reply_text: str
     escalate_to_human: bool
+    llm_used: bool
