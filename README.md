@@ -47,7 +47,7 @@ As configurações são lidas por `app/core/config.py` a partir do `.env`. Copie
 
 > A lista completa e comentada está em `.env.example`.
 
-## Subir com Docker (recomendado)
+## Subir com Docker 
 Não há `docker-compose.yml` padrão no repositório; use o arquivo `docker-compose.robust.yml`:
 ```bash
 docker compose -f docker-compose.robust.yml up --build
