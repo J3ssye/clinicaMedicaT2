@@ -26,8 +26,8 @@ class StorageService:
     def upload_bytes(self, object_key: str, content: bytes, content_type: str) -> None:
         self.ensure_bucket()
         self.client.put_object(
-            settings.minio_bucket,
-            object_key,
+            bucket_name=settings.minio_bucket,
+            object_name=object_key,
             data=BytesIO(content),
             length=len(content),
             content_type=content_type,
